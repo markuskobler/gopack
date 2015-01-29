@@ -8,7 +8,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/pelletier/go-toml"
+	toml "github.com/pelletier/go-toml"
 )
 
 type Config struct {
@@ -99,7 +99,14 @@ func (c *Config) checksum() []byte {
 }
 
 func (c *Config) LoadDependencyModel(importGraph *Graph) (deps *Dependencies, err error) {
-	totalDeps := len(c.DepsTree.Keys()) + len(c.DevDepsTree.Keys())
+	totalDeps := 0
+
+	if c.DepsTree != nil {
+		totalDeps += len(c.DepsTree.Keys())
+	}
+	if c.DevDepsTree != nil {
+		totalDeps += len(c.DevDepsTree.Keys())
+	}
 
 	if totalDeps == 0 {
 		return
@@ -123,6 +130,9 @@ func (c *Config) LoadDependencyModel(importGraph *Graph) (deps *Dependencies, er
 }
 
 func addDepsTree(deps *Dependencies, depsTree *toml.TomlTree, modifiedChecksum bool, pos int) error {
+	if depsTree == nil {
+		return nil
+	}
 	for _, k := range depsTree.Keys() {
 
 		depTree := depsTree.Get(k).(*toml.TomlTree)
