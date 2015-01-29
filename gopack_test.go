@@ -5,6 +5,8 @@ import (
 	"testing"
 )
 
+var GopackTestProjects = ".gopack/test-projects"
+
 func TestUnusedDep(t *testing.T) {
 	errors := findErrors(fmt.Sprintf("%s/unused-dep", GopackTestProjects), t)
 	if len(errors) != 1 {

@@ -4,11 +4,11 @@ import (
 	"bytes"
 	"crypto/md5"
 	"encoding/hex"
-	"fmt"
-	"github.com/pelletier/go-toml"
 	"io/ioutil"
 	"os"
 	"path/filepath"
+
+	"github.com/pelletier/go-toml"
 )
 
 type Config struct {
@@ -19,10 +19,12 @@ type Config struct {
 	Repository string
 	// Dependencies tree
 	DepsTree *toml.TomlTree
+	// Development Dependencies tree
+	DevDepsTree *toml.TomlTree
 }
 
 func NewConfig(dir string) *Config {
-	config := &Config{Path: fmt.Sprintf("%s/gopack.config", dir)}
+	config := &Config{Path: filepath.Join(dir, "gopack.config")}
 
 	t, err := toml.LoadFile(config.Path)
 	if err != nil {
@@ -31,6 +33,10 @@ func NewConfig(dir string) *Config {
 
 	if deps := t.Get("deps"); deps != nil {
 		config.DepsTree = deps.(*toml.TomlTree)
+	}
+
+	if deps := t.Get("dev-deps"); deps != nil {
+		config.DevDepsTree = deps.(*toml.TomlTree)
 	}
 
 	if repo := t.Get("repo"); repo != nil {
@@ -42,14 +48,14 @@ func NewConfig(dir string) *Config {
 
 func (c *Config) InitRepo(importGraph *Graph) {
 	if c.Repository != "" {
-		src := fmt.Sprintf("%s/%s/src", pwd, VendorDir)
+		src := filepath.Join(pwd, VendorDir, "src")
 		os.MkdirAll(src, 0755)
 
 		dir := filepath.Dir(c.Repository)
-		base := fmt.Sprintf("%s/%s", src, dir)
+		base := filepath.Join(src, dir)
 		os.MkdirAll(base, 0755)
 
-		repo := fmt.Sprintf("%s/%s", src, c.Repository)
+		repo := filepath.Join(src, c.Repository)
 		err := os.Symlink(pwd, repo)
 		if err != nil && !os.IsExist(err) {
 			fail(err)
@@ -93,22 +99,32 @@ func (c *Config) checksum() []byte {
 }
 
 func (c *Config) LoadDependencyModel(importGraph *Graph) (deps *Dependencies, err error) {
-	depsTree := c.DepsTree
+	totalDeps := len(c.DepsTree.Keys()) + len(c.DevDepsTree.Keys())
 
-	if depsTree == nil {
+	if totalDeps == 0 {
 		return
 	}
 
 	deps = new(Dependencies)
-
-	deps.Imports = make([]string, len(depsTree.Keys()))
-	deps.Keys = make([]string, len(depsTree.Keys()))
-	deps.DepList = make([]*Dep, len(depsTree.Keys()))
+	deps.Imports = make([]string, totalDeps)
+	deps.Keys = make([]string, totalDeps)
+	deps.DepList = make([]*Dep, totalDeps)
 	deps.ImportGraph = importGraph
 
 	modifiedChecksum := c.modifiedChecksum()
 
-	for i, k := range depsTree.Keys() {
+	if err := addDepsTree(deps, c.DepsTree, modifiedChecksum, 0); err != nil {
+		return nil, err
+	}
+	if err := addDepsTree(deps, c.DevDepsTree, modifiedChecksum, len(c.DepsTree.Keys())); err != nil {
+		return nil, err
+	}
+	return deps, nil
+}
+
+func addDepsTree(deps *Dependencies, depsTree *toml.TomlTree, modifiedChecksum bool, pos int) error {
+	for _, k := range depsTree.Keys() {
+
 		depTree := depsTree.Get(k).(*toml.TomlTree)
 		d := NewDependency(depTree.Get("import").(string))
 
@@ -120,17 +136,18 @@ func (c *Config) LoadDependencyModel(importGraph *Graph) (deps *Dependencies, er
 		d.setCheckout(depTree, "tag", TagFlag)
 
 		if err := d.Validate(); err != nil {
-			return nil, err
+			return err
 		}
 
 		d.Fetch(modifiedChecksum)
 
-		deps.Keys[i] = k
-		deps.Imports[i] = d.Import
-		deps.DepList[i] = d
+		deps.Keys[pos] = k
+		deps.Imports[pos] = d.Import
+		deps.DepList[pos] = d
+
+		pos++
 
 		deps.ImportGraph.Insert(d)
 	}
-
-	return deps, nil
+	return nil
 }

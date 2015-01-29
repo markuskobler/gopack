@@ -44,7 +44,7 @@ func downloadDependency(d *Dep, depPath, scmType string, scm Scm) (err error) {
 	} else if err != nil && !os.IsNotExist(err) {
 		err = fmt.Errorf("Error while examining dependency path for %s: %s", d.Import, err)
 	} else {
-		fmtcolor(Gray, "downloading %s\n", d.Source)
+		fmtcolor(Gray, "  Downloading: `%s` from %s\n", d.Import, d.Source)
 
 		cmd := scm.DownloadCommand(d.Source, depPath)
 

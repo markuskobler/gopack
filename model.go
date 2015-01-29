@@ -2,11 +2,13 @@ package main
 
 import (
 	"fmt"
-	"github.com/pelletier/go-toml"
 	"log"
 	"os"
 	"path"
+	"path/filepath"
 	"strings"
+
+	"github.com/pelletier/go-toml"
 )
 
 const (
@@ -178,7 +180,7 @@ func (d *Dependencies) Install(repo string) {
 		importName = e.Value.(string)
 
 		if importName != repo {
-			run("install", importName)
+			runGo("install", importName)
 		}
 	}
 }
@@ -204,7 +206,7 @@ func (d *Dep) CheckoutType() string {
 }
 
 func (d *Dep) Src() string {
-	return fmt.Sprintf("%s/%s/src/%s", pwd, VendorDir, d.Import)
+	return filepath.Join(pwd, VendorDir, "src", d.Import)
 }
 
 // switch the dep to the appropriate branch or tag
@@ -272,6 +274,8 @@ func (d *Dependencies) Validate(p *ProjectStats) []*ProjectError {
 			if found {
 				includedDeps[node.Dependency.Import] = node.Dependency
 			} else {
+				// XXX ignore for now
+
 				// report a validation error with the locations in source
 				// where an import is used but unmanaged in gopack.config
 				errors = append(errors, UnmanagedImportError(s))
@@ -282,7 +286,8 @@ func (d *Dependencies) Validate(p *ProjectStats) []*ProjectError {
 	for _, dep := range d.DepList {
 		_, found := includedDeps[dep.Import]
 		if !found && !p.IsImportUsed(dep.Import) {
-			errors = append(errors, UnusedDependencyError(dep.Import))
+			fmt.Printf("      Warning: `%s` not used\n", dep.Import)
+			//			errors = append(errors, UnusedDependencyError(dep.Import))
 		}
 	}
 	return errors

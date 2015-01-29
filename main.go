@@ -5,14 +5,7 @@ import (
 	"log"
 	"os"
 	"os/exec"
-)
-
-const (
-	GopackVersion      = "0.20.dev"
-	GopackDir          = ".gopack"
-	GopackChecksum     = ".gopack/checksum"
-	GopackTestProjects = ".gopack/test-projects"
-	VendorDir          = ".gopack/vendor"
+	"path/filepath"
 )
 
 const (
@@ -23,14 +16,26 @@ const (
 	EndColor = "\033[0m"
 )
 
+const (
+	GopackVersion  = "DEV"
+	GopackDir      = ".gopack"
+	GopackChecksum = ".gopack/checksum"
+)
+
 var (
 	pwd        string
-	showColors = true
+	VendorDir  = ".gopack/vendor"
+	showColors = false
 )
 
 func main() {
-	if os.Getenv("GOPACK_SKIP_COLORS") == "1" {
-		showColors = false
+	if os.Getenv("GOPACK_COLORS") == "1" {
+		showColors = true
+	}
+
+	if len(os.Args) > 1 && os.Args[1] == "version" {
+		fmt.Printf("gopack version %s\n", GopackVersion)
+		os.Exit(0)
 	}
 
 	// localize GOPATH
@@ -47,22 +52,31 @@ func main() {
 		fail("Error loading dependency info")
 	}
 
-	switch os.Args[1] {
+	action := ""
+	if len(os.Args) > 1 {
+		action = os.Args[1]
+	}
+
+	switch action {
 	case "dependencytree":
 		deps.PrintDependencyTree()
+		os.Exit(0)
 	case "stats":
 		p.PrintSummary()
+		os.Exit(0)
 	case "installdeps":
 		deps.Install(config.Repository)
+		os.Exit(0)
 	default:
-		runCommand()
+		// fallback to default go command with updated path
+		runGo(os.Args[1:]...)
 	}
+
 }
 
 func loadDependencies(root string, p *ProjectStats) (*Config, *Dependencies) {
 	config, dependencies := loadConfiguration(root)
 	if dependencies != nil {
-		announceGopack()
 		failWith(dependencies.Validate(p))
 		// prepare dependencies
 		loadTransitiveDependencies(dependencies)
@@ -83,17 +97,7 @@ func loadConfiguration(dir string) (*Config, *Dependencies) {
 	return config, dependencies
 }
 
-func runCommand() {
-	first := os.Args[1]
-	if first == "version" {
-		fmt.Printf("gopack version %s\n", GopackVersion)
-		os.Exit(0)
-	}
-
-	run(os.Args[1:]...)
-}
-
-func run(args ...string) {
+func runGo(args ...string) {
 	cmd := exec.Command("go", args...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
@@ -106,11 +110,11 @@ func run(args ...string) {
 func loadTransitiveDependencies(dependencies *Dependencies) {
 	dependencies.VisitDeps(
 		func(dep *Dep) {
-			fmtcolor(Gray, "updating %s\n", dep.Import)
+			fmtcolor(Gray, "     Updating: `%s`\n", dep.Import)
 			dep.Get()
 
 			if dep.CheckoutType() != "" {
-				fmtcolor(Gray, "pointing %s at %s %s\n", dep.Import, dep.CheckoutType(), dep.CheckoutSpec)
+				fmtcolor(Gray, "      Updated: `%s` at %s %s\n", dep.Import, dep.CheckoutType(), dep.CheckoutSpec)
 				dep.switchToBranchOrTag()
 			}
 
@@ -147,8 +151,17 @@ func setPwd() {
 // set GOPATH to the local vendor dir
 func setupEnv() {
 	setPwd()
-	vendor := fmt.Sprintf("%s/%s", pwd, VendorDir)
-	err := os.Setenv("GOPATH", vendor)
+
+	if goPath := os.Getenv("GOPATH"); goPath != "" {
+		s := filepath.SplitList(goPath)
+		dir, err := filepath.Rel(pwd, s[0])
+		if err == nil {
+			VendorDir = dir
+			return
+		}
+	}
+
+	err := os.Setenv("GOPATH", filepath.Join(pwd, VendorDir))
 	if err != nil {
 		fail(err)
 	}
@@ -202,9 +215,4 @@ func failWith(errors []*ProjectError) {
 		fmt.Println()
 		os.Exit(len(errors))
 	}
-}
-
-func announceGopack() {
-	fmtcolor(104, "/// g o p a c k ///")
-	fmt.Println()
 }
