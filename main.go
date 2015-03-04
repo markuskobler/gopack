@@ -195,6 +195,7 @@ func logcolor(c uint8, s string, args ...interface{}) {
 
 func failf(s string, args ...interface{}) {
 	fmtcolor(Red, s, args...)
+	log.Println("")
 	os.Exit(1)
 }
 
@@ -202,6 +203,7 @@ func fail(a ...interface{}) {
 	fmt.Printf("\033[%dm", Red)
 	fmt.Print(a)
 	fmt.Printf(EndColor)
+	fmt.Println("")
 	os.Exit(1)
 }
 

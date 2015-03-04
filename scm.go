@@ -47,7 +47,8 @@ func downloadDependency(d *Dep, depPath, scmType string, scm Scm) (err error) {
 		fmtcolor(Gray, "  Downloading: `%s` from %s\n", d.Import, d.Source)
 
 		cmd := scm.DownloadCommand(d.Source, depPath)
-
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
 		if err = cmd.Run(); err != nil {
 			return fmt.Errorf("Error downloading dependency: %s", err)
 		}
@@ -88,12 +89,17 @@ func (g Git) DownloadCommand(source, path string) *exec.Cmd {
 
 func (g Git) Checkout(d *Dep) error {
 	cmd := exec.Command("git", "checkout", d.CheckoutSpec)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
 	return cmd.Run()
 }
 
 func (g Git) Fetch(path string) error {
 	return runInPath(path, func() error {
-		return exec.Command("git", "fetch").Run()
+		cmd := exec.Command("git", "fetch")
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		return cmd.Run()
 	})
 }
 
@@ -115,13 +121,17 @@ func (h Hg) Checkout(d *Dep) error {
 	} else {
 		cmd = exec.Command("hg", "checkout", d.CheckoutSpec)
 	}
-
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
 	return cmd.Run()
 }
 
 func (h Hg) Fetch(path string) error {
 	return runInPath(path, func() error {
-		return exec.Command("hg", "pull").Run()
+		cmd := exec.Command("hg", "pull")
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		return cmd.Run()
 	})
 }
 
@@ -147,13 +157,17 @@ func (s Svn) Checkout(d *Dep) error {
 	case TagFlag:
 		cmd = exec.Command("svn", "switch", "^/tags/"+d.CheckoutSpec)
 	}
-
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
 	return cmd.Run()
 }
 
 func (s Svn) Fetch(path string) error {
 	return runInPath(path, func() error {
-		return exec.Command("svn", "update").Run()
+		cmd := exec.Command("svn", "update")
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		return cmd.Run()
 	})
 }
 
@@ -179,13 +193,17 @@ func (b Bzr) Checkout(d *Dep) error {
 	case TagFlag:
 		cmd = exec.Command("bzr", "update", "-r", "tag:"+d.CheckoutSpec)
 	}
-
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
 	return cmd.Run()
 }
 
 func (b Bzr) Fetch(path string) error {
 	return runInPath(path, func() error {
-		return exec.Command("bzr", "pull").Run()
+		cmd := exec.Command("bzr", "pull")
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		return cmd.Run()
 	})
 }
 
@@ -196,7 +214,10 @@ type Go struct {
 }
 
 func (g Go) Init(d *Dep) error {
-	return g.DownloadCommand(d.Import, "").Run()
+	cmd := g.DownloadCommand(d.Import, "")
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	return cmd.Run()
 }
 
 func (g Go) DownloadCommand(source, path string) *exec.Cmd {
