@@ -49,8 +49,8 @@ func downloadDependency(d *Dep, depPath, scmType string, scm Scm) (err error) {
 
 		var buf bytes.Buffer
 		cmd := scm.DownloadCommand(d.Source, depPath)
-		cmd.Stdout = buf
-		cmd.Stderr = buf
+		cmd.Stdout = &buf
+		cmd.Stderr = &buf
 		if err = cmd.Run(); err != nil {
 			buf.WriteTo(os.Stderr)
 			return fmt.Errorf("Error downloading dependency: %s", err)
@@ -93,10 +93,11 @@ func (g Git) DownloadCommand(source, path string) *exec.Cmd {
 func (g Git) Checkout(d *Dep) error {
 	var buf bytes.Buffer
 	cmd := exec.Command("git", "checkout", d.CheckoutSpec)
-	cmd.Stdout = buf
-	cmd.Stderr = buf
+	cmd.Stdout = &buf
+	cmd.Stderr = &buf
 	if err := cmd.Run(); err != nil {
 		buf.WriteTo(os.Stderr)
+		return err
 	}
 	return nil
 }
@@ -105,11 +106,13 @@ func (g Git) Fetch(path string) error {
 	return runInPath(path, func() error {
 		var buf bytes.Buffer
 		cmd := exec.Command("git", "fetch")
-		cmd.Stdout = buf
-		cmd.Stderr = buf
+		cmd.Stdout = &buf
+		cmd.Stderr = &buf
 		if err := cmd.Run(); err != nil {
 			buf.WriteTo(os.Stderr)
+			return err
 		}
+		return nil
 	})
 }
 
@@ -132,9 +135,9 @@ func (h Hg) Checkout(d *Dep) error {
 	} else {
 		cmd = exec.Command("hg", "checkout", d.CheckoutSpec)
 	}
-	cmd.Stdout = buf
-	cmd.Stderr = buf
-	if err = cmd.Run(); err != nil {
+	cmd.Stdout = &buf
+	cmd.Stderr = &buf
+	if err := cmd.Run(); err != nil {
 		buf.WriteTo(os.Stderr)
 		return err
 	}
@@ -145,9 +148,9 @@ func (h Hg) Fetch(path string) error {
 	return runInPath(path, func() error {
 		var buf bytes.Buffer
 		cmd := exec.Command("hg", "pull")
-		cmd.Stdout = buf
-		cmd.Stderr = buf
-		if err = cmd.Run(); err != nil {
+		cmd.Stdout = &buf
+		cmd.Stderr = &buf
+		if err := cmd.Run(); err != nil {
 			buf.WriteTo(os.Stderr)
 			return err
 		}
@@ -178,18 +181,24 @@ func (s Svn) Checkout(d *Dep) error {
 	case TagFlag:
 		cmd = exec.Command("svn", "switch", "^/tags/"+d.CheckoutSpec)
 	}
-	cmd.Stdout = buf
-	cmd.Stderr = buf
-	return cmd.Run()
+	cmd.Stdout = &buf
+	cmd.Stderr = &buf
+	if err := cmd.Run(); err != nil {
+		buf.WriteTo(os.Stderr)
+		return err
+	}
+	return nil
 }
 
 func (s Svn) Fetch(path string) error {
 	return runInPath(path, func() error {
+		var buf bytes.Buffer
 		cmd := exec.Command("svn", "update")
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
+		cmd.Stdout = &buf
+		cmd.Stderr = &buf
 		if err := cmd.Run(); err != nil {
 			buf.WriteTo(os.Stderr)
+			return err
 		}
 		return nil
 	})
@@ -218,8 +227,8 @@ func (b Bzr) Checkout(d *Dep) error {
 	case TagFlag:
 		cmd = exec.Command("bzr", "update", "-r", "tag:"+d.CheckoutSpec)
 	}
-	cmd.Stdout = buf
-	cmd.Stderr = buf
+	cmd.Stdout = &buf
+	cmd.Stderr = &buf
 	if err := cmd.Run(); err != nil {
 		buf.WriteTo(os.Stderr)
 	}
@@ -230,8 +239,8 @@ func (b Bzr) Fetch(path string) error {
 	return runInPath(path, func() error {
 		var buf bytes.Buffer
 		cmd := exec.Command("bzr", "pull")
-		cmd.Stdout = buf
-		cmd.Stderr = buf
+		cmd.Stdout = &buf
+		cmd.Stderr = &buf
 		if err := cmd.Run(); err != nil {
 			buf.WriteTo(os.Stderr)
 		}
@@ -248,8 +257,8 @@ type Go struct {
 func (g Go) Init(d *Dep) error {
 	var buf bytes.Buffer
 	cmd := g.DownloadCommand(d.Import, "")
-	cmd.Stdout = buf
-	cmd.Stderr = buf
+	cmd.Stdout = &buf
+	cmd.Stderr = &buf
 	if err := cmd.Run(); err != nil {
 		buf.WriteTo(os.Stderr)
 	}
