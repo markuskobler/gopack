@@ -3,6 +3,7 @@ package main
 // LOL so we're gonna try and avoid THIS situation http://golang.org/src/cmd/go/vcs.go#L331
 
 import (
+	"bytes"
 	"fmt"
 	"os"
 	"os/exec"
@@ -46,10 +47,12 @@ func downloadDependency(d *Dep, depPath, scmType string, scm Scm) (err error) {
 	} else {
 		fmtcolor(Gray, "  Downloading: `%s` from %s\n", d.Import, d.Source)
 
+		var buf bytes.Buffer
 		cmd := scm.DownloadCommand(d.Source, depPath)
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
+		cmd.Stdout = buf
+		cmd.Stderr = buf
 		if err = cmd.Run(); err != nil {
+			buf.WriteTo(os.Stderr)
 			return fmt.Errorf("Error downloading dependency: %s", err)
 		}
 	}
@@ -88,18 +91,25 @@ func (g Git) DownloadCommand(source, path string) *exec.Cmd {
 }
 
 func (g Git) Checkout(d *Dep) error {
+	var buf bytes.Buffer
 	cmd := exec.Command("git", "checkout", d.CheckoutSpec)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	return cmd.Run()
+	cmd.Stdout = buf
+	cmd.Stderr = buf
+	if err := cmd.Run(); err != nil {
+		buf.WriteTo(os.Stderr)
+	}
+	return nil
 }
 
 func (g Git) Fetch(path string) error {
 	return runInPath(path, func() error {
+		var buf bytes.Buffer
 		cmd := exec.Command("git", "fetch")
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-		return cmd.Run()
+		cmd.Stdout = buf
+		cmd.Stderr = buf
+		if err := cmd.Run(); err != nil {
+			buf.WriteTo(os.Stderr)
+		}
 	})
 }
 
@@ -116,22 +126,32 @@ func (h Hg) DownloadCommand(source, path string) *exec.Cmd {
 func (h Hg) Checkout(d *Dep) error {
 	var cmd *exec.Cmd
 
+	var buf bytes.Buffer
 	if d.CheckoutFlag == CommitFlag {
 		cmd = exec.Command("hg", "update", "-c", d.CheckoutSpec)
 	} else {
 		cmd = exec.Command("hg", "checkout", d.CheckoutSpec)
 	}
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	return cmd.Run()
+	cmd.Stdout = buf
+	cmd.Stderr = buf
+	if err = cmd.Run(); err != nil {
+		buf.WriteTo(os.Stderr)
+		return err
+	}
+	return nil
 }
 
 func (h Hg) Fetch(path string) error {
 	return runInPath(path, func() error {
+		var buf bytes.Buffer
 		cmd := exec.Command("hg", "pull")
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-		return cmd.Run()
+		cmd.Stdout = buf
+		cmd.Stderr = buf
+		if err = cmd.Run(); err != nil {
+			buf.WriteTo(os.Stderr)
+			return err
+		}
+		return nil
 	})
 }
 
@@ -149,6 +169,7 @@ func (s Svn) DownloadCommand(source, path string) *exec.Cmd {
 func (s Svn) Checkout(d *Dep) error {
 	var cmd *exec.Cmd
 
+	var buf bytes.Buffer
 	switch d.CheckoutFlag {
 	case CommitFlag:
 		cmd = exec.Command("svn", "up", "-r", d.CheckoutSpec)
@@ -157,8 +178,8 @@ func (s Svn) Checkout(d *Dep) error {
 	case TagFlag:
 		cmd = exec.Command("svn", "switch", "^/tags/"+d.CheckoutSpec)
 	}
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
+	cmd.Stdout = buf
+	cmd.Stderr = buf
 	return cmd.Run()
 }
 
@@ -167,7 +188,10 @@ func (s Svn) Fetch(path string) error {
 		cmd := exec.Command("svn", "update")
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
-		return cmd.Run()
+		if err := cmd.Run(); err != nil {
+			buf.WriteTo(os.Stderr)
+		}
+		return nil
 	})
 }
 
@@ -185,6 +209,7 @@ func (b Bzr) DownloadCommand(source, path string) *exec.Cmd {
 func (b Bzr) Checkout(d *Dep) error {
 	var cmd *exec.Cmd
 
+	var buf bytes.Buffer
 	switch d.CheckoutFlag {
 	case CommitFlag:
 		cmd = exec.Command("bzr", "update", "-r", d.CheckoutSpec)
@@ -193,17 +218,24 @@ func (b Bzr) Checkout(d *Dep) error {
 	case TagFlag:
 		cmd = exec.Command("bzr", "update", "-r", "tag:"+d.CheckoutSpec)
 	}
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	return cmd.Run()
+	cmd.Stdout = buf
+	cmd.Stderr = buf
+	if err := cmd.Run(); err != nil {
+		buf.WriteTo(os.Stderr)
+	}
+	return nil
 }
 
 func (b Bzr) Fetch(path string) error {
 	return runInPath(path, func() error {
+		var buf bytes.Buffer
 		cmd := exec.Command("bzr", "pull")
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-		return cmd.Run()
+		cmd.Stdout = buf
+		cmd.Stderr = buf
+		if err := cmd.Run(); err != nil {
+			buf.WriteTo(os.Stderr)
+		}
+		return nil
 	})
 }
 
@@ -214,10 +246,14 @@ type Go struct {
 }
 
 func (g Go) Init(d *Dep) error {
+	var buf bytes.Buffer
 	cmd := g.DownloadCommand(d.Import, "")
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	return cmd.Run()
+	cmd.Stdout = buf
+	cmd.Stderr = buf
+	if err := cmd.Run(); err != nil {
+		buf.WriteTo(os.Stderr)
+	}
+	return nil
 }
 
 func (g Go) DownloadCommand(source, path string) *exec.Cmd {
